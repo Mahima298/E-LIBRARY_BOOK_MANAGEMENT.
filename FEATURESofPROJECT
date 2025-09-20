@@ -1,0 +1,7 @@
+Dynamic Inventory Management: Uses a linked list to easily add, remove, and display all books in the library's collection.
+
+Core Circulation System: Allows users to borrow and return books, which instantly updates their availability status.
+
+Reversible Actions: Includes an undo feature powered by a stack that can instantly reverse the last borrow or return command.
+
+Quick Search Functionality: Provides a simple way to search and filter the entire inventory by book title or author.
