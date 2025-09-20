@@ -1,0 +1,244 @@
+// main.cpp
+#include <iostream>
+#include <string>
+#include <stack>
+#include <limits> // Required for numeric_limits
+#include <algorithm> // Required for std::transform
+
+// ANSI color codes for better terminal output
+#define RESET   "\033[0m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define BLUE    "\033[34m"
+#define MAGENTA "\033[35m"
+
+// Node for the Linked List
+struct Book {
+    std::string title;
+    std::string author;
+    std::string isbn;
+    bool isAvailable;
+    Book* next;
+
+    // Constructor for easy initialization
+    Book(std::string t, std::string a, std::string i)
+        : title(t), author(a), isbn(i), isAvailable(true), next(nullptr) {}
+};
+
+// Command object for the Undo Stack
+struct Command {
+    std::string action; // "BORROW" or "RETURN"
+    Book* book;         // Pointer to the affected book
+};
+
+class Library {
+private:
+    Book* head; // Head of the book inventory linked list
+    std::stack<Command> undoStack; // Stack for undoing actions
+
+    // Helper function to find a book by its ISBN
+    Book* findBookByIsbn(const std::string& isbn) {
+        Book* current = head;
+        while (current != nullptr) {
+            if (current->isbn == isbn) {
+                return current;
+            }
+            current = current->next;
+        }
+        return nullptr; // Not found
+    }
+
+public:
+    // Constructor
+    Library() : head(nullptr) {}
+
+    // Destructor to free memory
+    ~Library() {
+        Book* current = head;
+        while (current != nullptr) {
+            Book* next = current->next;
+            delete current;
+            current = next;
+        }
+    }
+
+    // 1. INVENTORY MANAGEMENT (Linked List)
+    void addBook(const std::string& title, const std::string& author, const std::string& isbn) {
+        Book* newBook = new Book(title, author, isbn);
+        newBook->next = head; // Add to the front of the list
+        head = newBook;
+    }
+
+    void displayInventory() const {
+        std::cout << BLUE << "\n--- Library Inventory ---\n" << RESET;
+        Book* current = head;
+        if (current == nullptr) {
+            std::cout << "The library is empty.\n";
+            return;
+        }
+        while (current != nullptr) {
+            std::cout << "Title: " << current->title << "\n"
+                      << "Author: " << current->author << "\n"
+                      << "ISBN: " << current->isbn << "\n"
+                      << "Status: " << (current->isAvailable ? GREEN "Available" : RED "Borrowed") << RESET << "\n\n";
+            current = current->next;
+        }
+    }
+
+    // 2. BORROW/RETURN BOOKS
+    void borrowBook(const std::string& isbn) {
+        Book* book = findBookByIsbn(isbn);
+        if (book == nullptr) {
+            std::cout << RED << "Error: Book with ISBN " << isbn << " not found.\n" << RESET;
+        } else if (!book->isAvailable) {
+            std::cout << YELLOW << "Info: Book '" << book->title << "' is already borrowed.\n" << RESET;
+        } else {
+            book->isAvailable = false;
+            undoStack.push({"BORROW", book}); // Push action to undo stack
+            std::cout << GREEN << "Success: You have borrowed '" << book->title << "'.\n" << RESET;
+        }
+    }
+
+    void returnBook(const std::string& isbn) {
+        Book* book = findBookByIsbn(isbn);
+        if (book == nullptr) {
+            std::cout << RED << "Error: Book with ISBN " << isbn << " not found.\n" << RESET;
+        } else if (book->isAvailable) {
+            std::cout << YELLOW << "Info: Book '" << book->title << "' is already in the library.\n" << RESET;
+        } else {
+            book->isAvailable = true;
+            undoStack.push({"RETURN", book}); // Push action to undo stack
+            std::cout << GREEN << "Success: You have returned '" << book->title << "'.\n" << RESET;
+        }
+    }
+
+    // 3. UNDO FUNCTIONALITY (Stack)
+    void undoLastAction() {
+        if (undoStack.empty()) {
+            std::cout << YELLOW << "No actions to undo.\n" << RESET;
+            return;
+        }
+
+        Command lastCommand = undoStack.top();
+        undoStack.pop();
+
+        if (lastCommand.action == "BORROW") {
+            // Undo a "borrow" by making the book available again
+            lastCommand.book->isAvailable = true;
+            std::cout << MAGENTA << "Undo: The book '" << lastCommand.book->title << "' has been returned to the library.\n" << RESET;
+        } else if (lastCommand.action == "RETURN") {
+            // Undo a "return" by making the book borrowed again
+            lastCommand.book->isAvailable = false;
+            std::cout << MAGENTA << "Undo: The book '" << lastCommand.book->title << "' is now marked as borrowed again.\n" << RESET;
+        }
+    }
+
+    // 4. SEARCH/FILTER FUNCTIONALITY
+    void search(const std::string& query) const {
+        std::cout << BLUE << "\n--- Search Results for '" << query << "' ---\n" << RESET;
+        bool found = false;
+        Book* current = head;
+        
+        // Convert query to lowercase for case-insensitive search
+        std::string lowerQuery = query;
+        std::transform(lowerQuery.begin(), lowerQuery.end(), lowerQuery.begin(), ::tolower);
+
+        while (current != nullptr) {
+            std::string lowerTitle = current->title;
+            std::string lowerAuthor = current->author;
+            std::transform(lowerTitle.begin(), lowerTitle.end(), lowerTitle.begin(), ::tolower);
+            std::transform(lowerAuthor.begin(), lowerAuthor.end(), lowerAuthor.begin(), ::tolower);
+
+            if (lowerTitle.find(lowerQuery) != std::string::npos || lowerAuthor.find(lowerQuery) != std::string::npos) {
+                std::cout << "Title: " << current->title << "\n"
+                          << "Author: " << current->author << "\n"
+                          << "ISBN: " << current->isbn << "\n"
+                          << "Status: " << (current->isAvailable ? GREEN "Available" : RED "Borrowed") << RESET << "\n\n";
+                found = true;
+            }
+            current = current->next;
+        }
+
+        if (!found) {
+            std::cout << "No books found matching your query.\n";
+        }
+    }
+};
+
+void printMenu() {
+    std::cout << "\n--- E-Library Menu ---\n";
+    std::cout << "1. Display all books\n";
+    std::cout << "2. Borrow a book\n";
+    std::cout << "3. Return a book\n";
+    std::cout << "4. Search for a book\n";
+    std::cout << "5. Undo last action\n";
+    std::cout << "6. Exit\n";
+    std::cout << "Enter your choice: ";
+}
+
+// Function to clear the input buffer
+void clearInputBuffer() {
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+}
+
+int main() {
+    Library lib;
+
+    // Add some initial books to the inventory
+    lib.addBook("The Lord of the Rings", "J.R.R. Tolkien", "978-0-618-64015-7");
+    lib.addBook("Pride and Prejudice", "Jane Austen", "978-0-141-43951-8");
+    lib.addBook("1984", "George Orwell", "978-0-452-28423-4");
+    lib.addBook("To Kill a Mockingbird", "Harper Lee", "978-0-06-112008-4");
+
+    int choice;
+    std::string input;
+
+    do {
+        printMenu();
+        std::cin >> choice;
+        
+        // Handle non-integer input
+        if (std::cin.fail()) {
+            std::cout << RED << "Invalid input. Please enter a number.\n" << RESET;
+            std::cin.clear();
+            clearInputBuffer();
+            choice = 0; // Reset choice to avoid infinite loop
+            continue;
+        }
+        
+        clearInputBuffer(); // Clear the rest of the line
+
+        switch (choice) {
+            case 1:
+                lib.displayInventory();
+                break;
+            case 2:
+                std::cout << "Enter ISBN of the book to borrow: ";
+                std::getline(std::cin, input);
+                lib.borrowBook(input);
+                break;
+            case 3:
+                std::cout << "Enter ISBN of the book to return: ";
+                std::getline(std::cin, input);
+                lib.returnBook(input);
+                break;
+            case 4:
+                std::cout << "Enter title or author to search: ";
+                std::getline(std::cin, input);
+                lib.search(input);
+                break;
+            case 5:
+                lib.undoLastAction();
+                break;
+            case 6:
+                std::cout << "Exiting the E-Library. Goodbye! 👋\n";
+                break;
+            default:
+                std::cout << RED << "Invalid choice. Please try again.\n" << RESET;
+                break;
+        }
+    } while (choice != 6);
+
+    return 0;
+}
